@@ -1,0 +1,57 @@
+---
+- name: Set timezone and locale
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - role: set-timezone
+      vars:
+        in_timezone: Europe/Warsaw
+        in_locale: pl_PL.UTF-8
+        in_language: pl_PL:pl
+        in_lc_all: pl_PL.UTF-8
+
+- name: Verify timezone and locale
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Get current timezone
+      ansible.builtin.command: timedatectl show --property=Timezone --value
+      register: var_result_timezone
+      changed_when: false
+
+    - name: Assert timezone is set correctly
+      ansible.builtin.assert:
+        that: var_result_timezone.stdout == 'Europe/Warsaw'
+        fail_msg: "Expected timezone Europe/Warsaw, got {{ var_result_timezone.stdout }}"
+
+    - name: Read /etc/timezone
+      ansible.builtin.slurp:
+        src: /etc/timezone
+      register: var_result_etc_timezone
+
+    - name: Assert /etc/timezone content
+      ansible.builtin.assert:
+        that: var_result_etc_timezone.content | b64decode | trim == 'Europe/Warsaw'
+        fail_msg: "/etc/timezone contains '{{ var_result_etc_timezone.content | b64decode | trim }}', expected 'Europe/Warsaw'"
+
+    - name: Read /etc/default/locale
+      ansible.builtin.slurp:
+        src: /etc/default/locale
+      register: var_result_locale
+
+    - name: Assert locale is configured
+      ansible.builtin.assert:
+        that:
+          - "'LANG=pl_PL.UTF-8' in var_result_locale.content | b64decode"
+          - "'LC_ALL=pl_PL.UTF-8' in var_result_locale.content | b64decode"
+        fail_msg: "Locale not configured correctly in /etc/default/locale"
+
+    - name: Get available locales
+      ansible.builtin.command: locale -a
+      register: var_result_locales
+      changed_when: false
+
+    - name: Assert pl_PL.UTF-8 locale is generated
+      ansible.builtin.assert:
+        that: "'pl_pl.utf8' in var_result_locales.stdout_lines | map('lower') | list"
+        fail_msg: "Locale pl_PL.UTF-8 not found in available locales: {{ var_result_locales.stdout }}"

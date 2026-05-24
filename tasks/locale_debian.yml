@@ -1,0 +1,74 @@
+---
+- name: Ensure required packages are installed
+  ansible.builtin.apt:
+    name:
+      - tzdata
+      - locales
+    state: present
+    update_cache: true
+  become: true
+
+- name: Enable locale in /etc/locale.gen
+  ansible.builtin.lineinfile:
+    path: /etc/locale.gen
+    regexp: "^#?\\s*{{ in_locale | replace('.', '\\\\.') }}(\\s|$)"
+    line: "{{ in_locale }} UTF-8"
+  become: true
+
+- name: Get available locales
+  ansible.builtin.command: locale -a
+  register: var_available_locales
+  changed_when: false
+
+- name: Generate locale
+  ansible.builtin.command: "locale-gen {{ in_locale }}"
+  changed_when: true
+  become: true
+  when: >-
+    in_locale | lower | replace('.utf-8', '.utf8')
+    not in var_available_locales.stdout_lines | map('lower') | list
+
+- name: Configure /etc/default/locale
+  ansible.builtin.copy:
+    dest: /etc/default/locale
+    mode: "0644"
+    content: |
+      LANG={{ in_locale }}
+      LANGUAGE={{ in_language }}
+      LC_ALL={{ in_lc_all }}
+  become: true
+
+- name: Check if timedatectl is available
+  ansible.builtin.stat:
+    path: /usr/bin/timedatectl
+  register: timedatectl_bin
+
+- name: Get current timezone
+  ansible.builtin.command: timedatectl show --property=Timezone --value
+  register: current_timezone
+  changed_when: false
+  when: timedatectl_bin.stat.exists
+
+- name: Set timezone via timedatectl
+  ansible.builtin.command: "timedatectl set-timezone {{ in_timezone }}"
+  changed_when: true
+  become: true
+  when:
+    - timedatectl_bin.stat.exists
+    - current_timezone.stdout != in_timezone
+
+- name: Persist timezone in /etc/timezone
+  ansible.builtin.copy:
+    dest: /etc/timezone
+    content: "{{ in_timezone }}\n"
+    mode: "0644"
+  become: true
+
+- name: Link /etc/localtime when timedatectl is missing
+  ansible.builtin.file:
+    src: "/usr/share/zoneinfo/{{ in_timezone }}"
+    dest: /etc/localtime
+    state: link
+    force: true
+  become: true
+  when: not timedatectl_bin.stat.exists

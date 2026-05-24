@@ -1,0 +1,8 @@
+---
+# Default timezone for Debian/Ubuntu
+in_timezone: Europe/Warsaw
+
+# Locale settings for Debian/Ubuntu
+in_locale: pl_PL.UTF-8
+in_language: pl_PL:pl
+in_lc_all: pl_PL.UTF-8

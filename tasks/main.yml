@@ -1,0 +1,6 @@
+---
+# NOTE: include_tasks is dynamic — tags passed to the role do NOT propagate
+# into the included file. Use 'import_tasks' with static filename if tag
+# filtering is needed, but that requires dropping the dynamic os_family dispatch.
+- name: Include OS-family specific tasks
+  ansible.builtin.include_tasks: "locale_{{ ansible_facts.os_family | lower }}.yml"
